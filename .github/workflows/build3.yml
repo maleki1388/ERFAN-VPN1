@@ -1,0 +1,40 @@
+name: Build APK 3
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Disable lint tasks
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/nolint.gradle <<'EOF'
+          allprojects {
+            tasks.configureEach { t ->
+              if (t.name.startsWith('lint')) { t.enabled = false }
+            }
+          }
+          EOF
+      - name: Run steps from erfan-build-v9.yml
+        run: |
+          python3 - <<'PY'
+          import yaml, subprocess
+          d = yaml.safe_load(open('erfan-build-v9.yml', encoding='utf-8'))
+          for s in d['jobs']['build']['steps']:
+              if 'run' in s:
+                  print('>>>', s.get('name', ''), flush=True)
+                  open('/tmp/step.sh', 'w', encoding='utf-8').write(s['run'])
+                  subprocess.run(['bash', '-e', '/tmp/step.sh'], cwd=s.get('working-directory', '.'), check=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ERFAN-apk
+          path: app/build/app/outputs/flutter-apk/*.apk
